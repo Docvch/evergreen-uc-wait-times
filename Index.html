@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>EvergreenHealth Urgent Care Wait Times</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f4f4f4;
+      --card-bg: #ffffff;
+      --accent: #0c7a5c;
+      --accent-soft: #e0f2f1;
+      --danger: #b91c1c;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+      background-color: var(--bg);
+      color: #111827;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .page {
+      padding: 20px;
+      max-width: 1200px;
+      width: 100%;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      text-align: center;
+      font-size: 1.8rem;
+    }
+
+    .timestamp {
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      padding: 14px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .card.closed {
+      opacity: 0.8;
+      background: #f3f4f6;
+    }
+
+    .loc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .loc-name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .status.closed {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .big-wait {
+      margin-top: 6px;
+      font-size: 2.2rem;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .big-wait span {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    .line {
+      font-size: 0.9rem;
+      color: #374151;
+      margin-top: 2px;
+      text-align: center;
+    }
+
+    .drive-group {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #374151;
+      text-align: center;
+    }
+
+    .drive-group div {
+      margin-top: 2px;
+    }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      .page { padding: 10px; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="timestamp" id="lastUpdated">Loading wait times…</div>
+    <h1>EvergreenHealth Urgent Care Wait Times</h1>
+
+    <div id="grid" class="grid"></div>
+
+    <div class="footer">
+      Wait times and open/closed status are provided by Epic MyChart OnMyWay.
+      Drive times and distances are calculated from EvergreenHealth Urgent Care, Redmond.
+      Page refreshes automatically every 60 seconds.
+    </div>
+  </div>
+
+  <script>
+    async function loadWaits() {
+      const tsEl = document.getElementById("lastUpdated");
+      const grid = document.getElementById("grid");
+      try {
+        tsEl.textContent = "Loading wait times…";
+
+        const res = await fetch("/api/evergreen");
+        if (!res.ok) {
+          const text = await res.text();
+          tsEl.textContent = "Error loading data (" + res.status + ")";
+          console.error("API error", res.status, text);
+          return;
+        }
+        const data = await res.json();
+
+        const updated = data.updatedAt
+          ? new Date(data.updatedAt).toLocaleTimeString()
+          : new Date().toLocaleTimeString();
+        tsEl.textContent = "Last Updated: " + updated;
+
+        grid.innerHTML = "";
+        (data.locations || []).forEach((loc) => {
+          const card = document.createElement("div");
+          card.className = "card" + (loc.isOpen ? "" : " closed");
+
+          const header = document.createElement("div");
+          header.className = "loc-header";
+          const nameEl = document.createElement("div");
+          nameEl.className = "loc-name";
+          nameEl.textContent = loc.name;
+          const statusEl = document.createElement("div");
+          statusEl.className = "status" + (loc.isOpen ? "" : " closed");
+          statusEl.textContent = loc.isOpen ? "Open" : "Closed";
+          header.appendChild(nameEl);
+          header.appendChild(statusEl);
+          card.appendChild(header);
+
+          const big = document.createElement("div");
+          big.className = "big-wait";
+          if (loc.minutes != null) {
+            big.innerHTML = loc.minutes + "<span>min</span>";
+          } else {
+            big.innerHTML = "n/a<span></span>";
+          }
+          card.appendChild(big);
+
+          const range = document.createElement("div");
+          range.className = "line";
+          range.textContent = "Expected wait range: " + (loc.range || "n/a");
+          card.appendChild(range);
+
+          const driveGroup = document.createElement("div");
+          driveGroup.className = "drive-group";
+          const d1 = document.createElement("div");
+          const d2 = document.createElement("div");
+
+          if (loc.driveMinutes != null) {
+            d1.textContent = "Drive time: " + loc.driveMinutes + " min";
+          } else {
+            d1.textContent = "Drive time: unavailable";
+          }
+
+          if (loc.driveMiles != null) {
+            d2.textContent = "Distance: " + loc.driveMiles.toFixed(1) + " miles";
+          } else {
+            d2.textContent = "Distance: unavailable";
+          }
+
+          driveGroup.appendChild(d1);
+          driveGroup.appendChild(d2);
+          card.appendChild(driveGroup);
+
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+        tsEl.textContent = "Error loading data.";
+      }
+    }
+
+    loadWaits();
+    setInterval(loadWaits, 60000); // refresh every 60 seconds
+  </script>
+</body>
+</html>

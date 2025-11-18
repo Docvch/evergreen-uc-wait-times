@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/evergreen.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/evergreen", "dest": "/api/evergreen.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
